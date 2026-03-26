@@ -1,0 +1,54 @@
+# Reference config example. Most students do not need this for the main path.
+# Small Model Configuration
+# Designed for limited hardware (Google Colab free tier)
+
+# Model architecture
+model:
+  d_model: 256
+  num_layers: 4
+  num_heads: 4
+  d_ff: 1024
+  max_seq_len: 256
+  dropout: 0.1
+
+  # Component choices
+  attention_type: "mha"  # "mha" or "gqa"
+  num_kv_heads: null  # For GQA, set to num_heads // 2
+  pos_encoding_type: "sinusoidal"  # "sinusoidal", "rope", or "learned"
+  norm_type: "layernorm"  # "layernorm" or "rmsnorm"
+  norm_position: "pre"  # "pre" or "post"
+  ffn_type: "standard"  # "standard", "glu", "swiglu", "geglu", "moe"
+  activation: "gelu"  # "relu", "gelu", "silu"
+
+# Data
+data:
+  data_path: "output/english_data/tinystories_train_50k.jsonl"
+  tokenizer_path: "assets/tokenizers/english_bytebpe_8k.json"
+  split_ratio: [0.9, 0.05, 0.05]  # train, val, test
+
+# Training
+training:
+  # Optimization
+  batch_size: 32
+  learning_rate: 3.0e-4
+  weight_decay: 0.01
+  num_epochs: 10
+
+  # Gradient management
+  max_grad_norm: 1.0
+  gradient_accumulation_steps: 1
+
+  # Learning rate schedule
+  scheduler_type: "warmup_cosine"  # "warmup", "cosine", "warmup_cosine", "linear"
+  warmup_steps: 500
+
+  # Mixed precision
+  use_amp: false  # Set to true for faster training on GPU
+
+  # Logging and checkpointing
+  use_wandb: false
+  log_interval: 10
+  checkpoint_dir: "checkpoints"
+
+  # Data loading
+  num_workers: 2
