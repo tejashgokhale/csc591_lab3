@@ -52,16 +52,24 @@ def collate_fn(
     # pad_sequence expects a list of tensors and returns a padded tensor
     # Set batch_first=True to get shape (batch_size, seq_len)
     # STUDENT TODO: Pad input_ids
-    input_ids_padded = None  # STUDENT TODO
+    input_ids_padded = pad_sequence(
+        input_ids,
+        batch_first=True,
+        padding_value=pad_token_id,
+    )  # STUDENT TODO
 
     # STUDENT TODO: Pad target_ids
-    target_ids_padded = None  # STUDENT TODO
+    target_ids_padded = pad_sequence(
+        target_ids,
+        batch_first=True,
+        padding_value=pad_token_id,
+    )  # STUDENT TODO
 
     # TODO: Create attention mask
     # 1 for real tokens, 0 for padding
     # STUDENT TODO: Create mask where padding positions are 0
     # Hint: (input_ids_padded != pad_token_id).long()
-    attention_mask = None  # STUDENT TODO
+    attention_mask = (input_ids_padded != pad_token_id).long()  # STUDENT TODO
 
     return input_ids_padded, target_ids_padded, attention_mask
 
@@ -94,7 +102,15 @@ def create_dataloader(
 
     # TODO: Create DataLoader
     # STUDENT TODO: Create DataLoader with appropriate parameters
-    dataloader = None  # STUDENT TODO
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        collate_fn=collate,
+        pin_memory=pin_memory,
+    )
+  # STUDENT TODO
 
     return dataloader
 

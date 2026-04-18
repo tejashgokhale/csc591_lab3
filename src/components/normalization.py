@@ -57,11 +57,11 @@ class LayerNorm(nn.Module):
         if self.elementwise_affine:
             # TODO: Create learnable scale parameter (gamma) initialized to ones
             # Hint: Use nn.Parameter(torch.ones(normalized_shape))
-            self.weight = None  # STUDENT TODO
+            self.weight = nn.Parameter(torch.ones(normalized_shape))  # STUDENT TODO
 
             # TODO: Create learnable shift parameter (beta) initialized to zeros
             # Hint: Use nn.Parameter(torch.zeros(normalized_shape))
-            self.bias = None  # STUDENT TODO
+            self.bias = nn.Parameter(torch.zeros(normalized_shape))  # STUDENT TODO
         else:
             self.register_parameter("weight", None)
             self.register_parameter("bias", None)
@@ -79,21 +79,21 @@ class LayerNorm(nn.Module):
         # TODO: Compute mean across the last dimension (feature dimension)
         # Hint: Use torch.mean(x, dim=-1, keepdim=True)
         # keepdim=True preserves the dimension for broadcasting
-        mean = None  # STUDENT TODO
+        mean = torch.mean(x, dim=-1, keepdim=True)  # STUDENT TODO
 
         # TODO: Compute variance across the last dimension
         # Hint: Use torch.var(x, dim=-1, keepdim=True, unbiased=False)
         # unbiased=False uses N instead of N-1 in the denominator
-        var = None  # STUDENT TODO
+        var = torch.var(x, dim=-1, keepdim=True, unbiased=False)  # STUDENT TODO
 
         # TODO: Normalize: (x - mean) / sqrt(var + eps)
         # Hint: Use torch.sqrt() or var.sqrt(), and add self.eps for stability
-        x_norm = None  # STUDENT TODO
+        x_norm = (x - mean) / torch.sqrt(var + self.eps)  # STUDENT TODO
 
         # TODO: Apply affine transformation if enabled
         # Formula: x_norm * gamma + beta
         if self.elementwise_affine:
-            x_norm = None  # STUDENT TODO
+            x_norm = x_norm * self.weight + self.bias  # STUDENT TODO
 
         return x_norm
 
@@ -139,7 +139,7 @@ class RMSNorm(nn.Module):
 
         # TODO: Create learnable scale parameter (gamma) initialized to ones
         # Hint: Use nn.Parameter(torch.ones(normalized_shape))
-        self.weight = None  # STUDENT TODO
+        self.weight = nn.Parameter(torch.ones(normalized_shape))  # STUDENT TODO
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -157,15 +157,15 @@ class RMSNorm(nn.Module):
         # Step 2: Compute mean across the last dimension (keepdim=True)
         # Step 3: Add eps and take square root
         # Hint: Use torch.mean() and torch.sqrt() or .rsqrt() for 1/sqrt
-        rms = None  # STUDENT TODO
+        rms = torch.sqrt(torch.mean(x * x, dim=-1, keepdim=True) + self.eps)  # STUDENT TODO
 
         # TODO: Normalize by RMS
         # Formula: x / RMS
-        x_norm = None  # STUDENT TODO
+        x_norm = x / rms  # STUDENT TODO
 
         # TODO: Apply scale parameter
         # Formula: x_norm * gamma
-        x_norm = None  # STUDENT TODO
+        x_norm = x_norm * self.weight  # STUDENT TODO
 
         return x_norm
 
@@ -200,9 +200,9 @@ class PreNorm(nn.Module):
         # TODO: Create normalization layer based on norm_type
         # Hint: Use LayerNorm(dim) if norm_type == "layernorm", else RMSNorm(dim)
         if norm_type == "layernorm":
-            self.norm = None  # STUDENT TODO
+            self.norm = LayerNorm(dim)  # STUDENT TODO
         elif norm_type == "rmsnorm":
-            self.norm = None  # STUDENT TODO
+            self.norm = RMSNorm(dim)  # STUDENT TODO
         else:
             raise ValueError(f"Unknown norm_type: {norm_type}")
 
@@ -250,9 +250,9 @@ class PostNorm(nn.Module):
         super().__init__()
         # TODO: Create normalization layer based on norm_type
         if norm_type == "layernorm":
-            self.norm = None  # STUDENT TODO
+            self.norm = LayerNorm(dim)  # STUDENT TODO
         elif norm_type == "rmsnorm":
-            self.norm = None  # STUDENT TODO
+            self.norm = RMSNorm(dim)  # STUDENT TODO
         else:
             raise ValueError(f"Unknown norm_type: {norm_type}")
 
@@ -272,7 +272,10 @@ class PostNorm(nn.Module):
         # TODO: Apply normalization after the sub-layer
         # Formula: norm(x + fn(x))
         # Hint: self.fn(x) applies the sub-layer, then add x, then normalize
-        return None  # STUDENT TODO
+        out = self.fn(x, **kwargs)
+        if isinstance(out, tuple):
+            return (self.norm(x + out[0]),) + out[1:]
+        return self.norm(x + out)  # STUDENT TODO
 
 
 # Comparison utility

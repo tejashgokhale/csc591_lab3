@@ -55,44 +55,74 @@ class TransformerLanguageModel(nn.Module):
         # TODO: Create token embedding layer
         # This converts token IDs to dense vectors
         # Hint: Use nn.Embedding(config.vocab_size, config.d_model, padding_idx=config.pad_token_id)
-        self.token_embedding = None  # STUDENT TODO
+        self.token_embedding = nn.Embedding(
+                                config.vocab_size,
+                                config.d_model,
+                                padding_idx=config.pad_token_id,
+                                )  # STUDENT TODO
 
         # TODO: Create positional encoding based on config
         # Hint: Check config.pos_encoding_type and create the appropriate module
         if config.pos_encoding_type == "sinusoidal":
-            self.pos_encoding = None  # STUDENT TODO
+            self.pos_encoding = SinusoidalPositionalEncoding(
+        d_model=config.d_model,
+        max_len=config.max_seq_len,
+        dropout=config.dropout,
+    )  # STUDENT TODO
         elif config.pos_encoding_type == "rope":
             # RoPE is applied in attention, so we just store it
-            self.pos_encoding = None  # STUDENT TODO (use head_dim)
+            self.pos_encoding = RotaryPositionalEmbedding(
+        dim=config.d_model // config.num_heads,
+        max_len=config.max_seq_len,
+    )  # STUDENT TODO (use head_dim)
         elif config.pos_encoding_type == "learned":
-            self.pos_encoding = None  # STUDENT TODO
+            self.pos_encoding = LearnedPositionalEmbedding(
+        max_len=config.max_seq_len,
+        d_model=config.d_model,
+    )  # STUDENT TODO
         else:
             raise ValueError(f"Unknown pos_encoding_type: {config.pos_encoding_type}")
 
         # TODO: Create stack of transformer decoder layers
         # Hint: Use nn.ModuleList with TransformerDecoderLayer for each layer
-        self.layers = None  # STUDENT TODO
+        self.layers = nn.ModuleList([
+    TransformerDecoderLayer(
+        d_model=config.d_model,
+        num_heads=config.num_heads,
+        d_ff=config.d_ff,
+        dropout=config.dropout,
+        activation=config.activation,
+        norm_type=config.norm_type,
+        norm_position=config.norm_position,
+        attention_type=config.attention_type,
+        num_kv_heads=config.num_kv_heads,
+        ffn_type=config.ffn_type,
+        use_cross_attention=False,
+    )
+    for _ in range(config.num_layers)
+])  # STUDENT TODO
 
         # TODO: Create final layer normalization
         # Hint: Use LayerNorm or RMSNorm based on config.norm_type
         if config.norm_type == "layernorm":
             from ..components import LayerNorm
-            self.final_norm = None  # STUDENT TODO
+            self.final_norm = LayerNorm(config.d_model)  # STUDENT TODO
         elif config.norm_type == "rmsnorm":
             from ..components import RMSNorm
-            self.final_norm = None  # STUDENT TODO
+            self.final_norm = RMSNorm(config.d_model)  # STUDENT TODO
 
         # TODO: Create output projection layer (language modeling head)
         # This projects from d_model to vocab_size
         # Hint: Use nn.Linear(config.d_model, config.vocab_size, bias=False)
-        self.lm_head = None  # STUDENT TODO
+        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)  # STUDENT TODO
 
         # TODO: Tie input and output embeddings if specified
         # This shares weights between token embedding and output projection
         # It reduces parameters and often improves performance
         if config.tie_word_embeddings:
             # STUDENT TODO: Set self.lm_head.weight = self.token_embedding.weight
-            pass
+            self.lm_head.weight = self.token_embedding.weight
+            
 
         # Initialize weights
         self.apply(self._init_weights)
@@ -106,15 +136,16 @@ class TransformerLanguageModel(nn.Module):
         if isinstance(module, nn.Linear):
             # TODO: Initialize linear layer weights
             # Hint: Use torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-            pass  # STUDENT TODO
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+              # STUDENT TODO
             if module.bias is not None:
                 # TODO: Initialize bias to zero
                 # Hint: Use torch.nn.init.zeros_(module.bias)
-                pass  # STUDENT TODO
+                torch.nn.init.zeros_(module.bias)  # STUDENT TODO
         elif isinstance(module, nn.Embedding):
             # TODO: Initialize embedding weights
             # Hint: Use torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-            pass  # STUDENT TODO
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)  # STUDENT TODO
 
     def forward(
         self,
@@ -140,31 +171,31 @@ class TransformerLanguageModel(nn.Module):
         # TODO: Get token embeddings
         # Hint: self.token_embedding(input_ids)
         # Shape: (batch_size, seq_len, d_model)
-        x = None  # STUDENT TODO
+        x = self.token_embedding(input_ids)  # STUDENT TODO
 
         # TODO: Apply positional encoding
         # The method depends on the type of positional encoding
         if self.config.pos_encoding_type in ["sinusoidal", "learned"]:
             # For sinusoidal and learned, we add the encoding to embeddings
             # Hint: x = self.pos_encoding(x)
-            x = None  # STUDENT TODO
+            x = self.pos_encoding(x)  # STUDENT TODO
         # For RoPE, we'll apply it inside the attention mechanism
 
         # TODO: Create causal mask for autoregressive generation
         # Hint: Use create_causal_mask(seq_len, input_ids.device)
-        causal_mask = None  # STUDENT TODO
+        causal_mask = create_causal_mask(seq_len, input_ids.device)  # STUDENT TODO
 
         # TODO: Combine causal mask with padding mask if provided
         if attention_mask is not None:
             # Create padding mask
             # Hint: Use create_padding_mask(input_ids, self.config.pad_token_id)
             # Or use the provided attention_mask
-            padding_mask = None  # STUDENT TODO
+            padding_mask = attention_mask.unsqueeze(1).unsqueeze(2).float()  # STUDENT TODO
 
             # Combine masks: both causal and padding must be satisfied
             # Hint: Use element-wise multiplication or logical AND
             # Shape: (batch_size, 1, seq_len, seq_len)
-            mask = None  # STUDENT TODO
+            mask = causal_mask * padding_mask  # STUDENT TODO
         else:
             mask = causal_mask
 
@@ -175,7 +206,7 @@ class TransformerLanguageModel(nn.Module):
         for layer in self.layers:
             if return_hidden_states:
                 hidden_states.append(x)
-
+            
             # Apply RoPE if using rotary positional encoding
             if self.config.pos_encoding_type == "rope":
                 # RoPE is applied inside the attention mechanism
@@ -186,16 +217,16 @@ class TransformerLanguageModel(nn.Module):
 
             # TODO: Apply transformer layer
             # Hint: x = layer(x, self_attn_mask=mask)
-            x = None  # STUDENT TODO
+            x = layer(x, self_attn_mask=mask)  # STUDENT TODO
 
         # TODO: Apply final layer normalization
         # Hint: x = self.final_norm(x)
-        x = None  # STUDENT TODO
+        x = self.final_norm(x)  # STUDENT TODO
 
         # TODO: Project to vocabulary
         # Hint: logits = self.lm_head(x)
         # Shape: (batch_size, seq_len, vocab_size)
-        logits = None  # STUDENT TODO
+        logits = self.lm_head(x)  # STUDENT TODO
 
         return logits, hidden_states
 
@@ -232,39 +263,53 @@ class TransformerLanguageModel(nn.Module):
             for _ in range(max_new_tokens):
                 # TODO: Get logits for the last token
                 # Hint: Forward pass, then take logits[:, -1, :]
-                logits, _ = None, None  # STUDENT TODO
-                logits = None  # STUDENT TODO (select last token)
+                logits, _ = self.forward(generated)  # STUDENT TODO
+                logits = logits[:, -1, :]  # STUDENT TODO (select last token)
 
                 # TODO: Apply temperature
                 # Hint: logits = logits / temperature
-                logits = None  # STUDENT TODO
+                logits = logits / temperature  # STUDENT TODO
 
                 # TODO: Apply top-k filtering if specified
                 if top_k is not None:
                     # Keep only top k logits, set others to -inf
                     # Hint: Use torch.topk()
-                    pass  # STUDENT TODO
+                    values, _ = torch.topk(logits, top_k, dim=-1)
+                    min_values = values[:, -1].unsqueeze(-1)
+                    logits = torch.where(
+                logits < min_values,
+                torch.full_like(logits, float("-inf")),
+                logits,
+            )  # STUDENT TODO
 
                 # TODO: Apply top-p (nucleus) filtering if specified
                 if top_p is not None:
                     # Keep only tokens with cumulative probability <= top_p
                     # This is more complex, students will implement in generation module
-                    pass  # STUDENT TODO
+                    sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
+                    sorted_probs = F.softmax(sorted_logits, dim=-1)
+                    cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[:, 1:] = sorted_indices_to_remove[:, :-1].clone()
+                    sorted_indices_to_remove[:, 0] = False
+                    for b in range(logits.size(0)):
+                        remove_ids = sorted_indices[b][sorted_indices_to_remove[b]]
+                        logits[b, remove_ids] = float("-inf")  # STUDENT TODO
 
                 # TODO: Sample next token
                 if do_sample:
                     # Sample from the distribution
                     # Hint: Use F.softmax() and torch.multinomial()
-                    probs = None  # STUDENT TODO
-                    next_token = None  # STUDENT TODO
+                    probs = F.softmax(logits, dim=-1)  # STUDENT TODO
+                    next_token = next_token = torch.multinomial(probs, num_samples=1)  # STUDENT TODO
                 else:
                     # Greedy decoding: take the most likely token
                     # Hint: Use torch.argmax()
-                    next_token = None  # STUDENT TODO
+                    next_token = torch.argmax(logits, dim=-1, keepdim=True)  # STUDENT TODO
 
                 # TODO: Append next token to generated sequence
                 # Hint: Use torch.cat([generated, next_token.unsqueeze(-1)], dim=-1)
-                generated = None  # STUDENT TODO
+                generated = torch.cat([generated, next_token], dim=-1)  # STUDENT TODO
 
                 # TODO: Check for EOS token
                 # If all sequences have generated EOS, stop

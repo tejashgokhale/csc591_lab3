@@ -53,14 +53,14 @@ class PositionWiseFeedForward(nn.Module):
 
         # TODO: Create first linear layer (d_model -> d_ff)
         # Hint: Use nn.Linear(d_model, d_ff)
-        self.linear1 = None  # STUDENT TODO
+        self.linear1 = nn.Linear(d_model, d_ff)  # STUDENT TODO
 
         # TODO: Create second linear layer (d_ff -> d_model)
-        self.linear2 = None  # STUDENT TODO
+        self.linear2 = nn.Linear(d_ff, d_model)  # STUDENT TODO
 
         # TODO: Get activation function
         # Hint: Use get_activation(activation)
-        self.activation = None  # STUDENT TODO
+        self.activation = get_activation(activation)  # STUDENT TODO
 
         self.dropout = nn.Dropout(dropout)
 
@@ -76,10 +76,10 @@ class PositionWiseFeedForward(nn.Module):
         """
         # TODO: Apply FFN: linear1 -> activation -> dropout -> linear2
         # Hint: Chain the operations: self.linear1(x), self.activation(...), etc.
-        x = None  # STUDENT TODO (apply linear1)
-        x = None  # STUDENT TODO (apply activation)
-        x = None  # STUDENT TODO (apply dropout)
-        x = None  # STUDENT TODO (apply linear2)
+        x = self.linear1(x)  # STUDENT TODO (apply linear1)
+        x = self.activation(x)  # STUDENT TODO (apply activation)
+        x = self.dropout(x)  # STUDENT TODO (apply dropout)
+        x = self.linear2(x)  # STUDENT TODO (apply linear2)
 
         return x
 
@@ -327,17 +327,23 @@ def create_ffn(
     # TODO: Create and return the appropriate FFN based on ffn_type
     # Hint: Use if-elif-else or a dictionary
     if ffn_type == "standard":
-        return None  # STUDENT TODO
+        return PositionWiseFeedForward(d_model, d_ff, dropout, activation)  # STUDENT TODO
     elif ffn_type == "glu":
-        return None  # STUDENT TODO
+        return GLUFeedForward(d_model, d_ff, dropout, activation)  # STUDENT TODO
     elif ffn_type == "swiglu":
         # SwiGLU uses SiLU activation
-        return None  # STUDENT TODO
+        return GLUFeedForward(d_model, d_ff, dropout, "silu")  # STUDENT TODO
     elif ffn_type == "geglu":
         # GeGLU uses GELU activation
-        return None  # STUDENT TODO
+        return GLUFeedForward(d_model, d_ff, dropout, "gelu")  # STUDENT TODO
     elif ffn_type == "moe":
-        return None  # STUDENT TODO
+        return MixtureOfExperts(
+            d_model=d_model,
+            d_ff=d_ff,
+            dropout=dropout,
+            activation=activation,
+            **kwargs,
+          )  # STUDENT TODO
     else:
         raise ValueError(f"Unknown FFN type: {ffn_type}")
 

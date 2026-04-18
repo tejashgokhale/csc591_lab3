@@ -45,7 +45,7 @@ class ReLU(nn.Module):
         """
         # TODO: Implement ReLU
         # Hint: Use torch.relu(x) or F.relu(x) or torch.maximum(x, torch.zeros_like(x))
-        return None  # STUDENT TODO
+        return torch.relu(x)  # STUDENT TODO
 
 
 class GELU(nn.Module):
@@ -90,7 +90,7 @@ class GELU(nn.Module):
         # Option 2: Implement the approximation formula:
         #   0.5 * x * (1 + tanh(sqrt(2/π) * (x + 0.044715 * x^3)))
         # Hint: sqrt(2/π) ≈ 0.7978845608
-        return None  # STUDENT TODO
+        return F.gelu(x, approximate=self.approximate)  # STUDENT TODO
 
 
 class SiLU(nn.Module):
@@ -125,7 +125,7 @@ class SiLU(nn.Module):
         # TODO: Implement SiLU
         # Formula: x * sigmoid(x)
         # Hint: Use torch.sigmoid(x) or F.silu(x)
-        return None  # STUDENT TODO
+        return x * torch.sigmoid(x)  # STUDENT TODO
 
 
 class GLU(nn.Module):
@@ -162,11 +162,11 @@ class GLU(nn.Module):
         """
         # TODO: Split input into two halves along the last dimension
         # Hint: Use torch.chunk(x, 2, dim=-1)
-        a, b = None, None  # STUDENT TODO
+        a, b = torch.chunk(x, 2, dim=-1)  # STUDENT TODO
 
         # TODO: Apply gating: a * sigmoid(b)
         # Hint: Use torch.sigmoid(b)
-        return None  # STUDENT TODO
+        return a * torch.sigmoid(b)  # STUDENT TODO
 
 
 # Activation function factory
@@ -186,11 +186,11 @@ def get_activation(name: str) -> nn.Module:
     # TODO: Return the appropriate activation function based on name
     # Hint: Use a dictionary or if-elif-else
     activations = {
-        "relu": None,  # STUDENT TODO
-        "gelu": None,  # STUDENT TODO
-        "silu": None,  # STUDENT TODO
-        "swish": None,  # STUDENT TODO (same as silu)
-        "glu": None,  # STUDENT TODO
+        "relu": ReLU(),  # STUDENT TODO
+        "gelu": GELU(),  # STUDENT TODO
+        "silu": SiLU(),  # STUDENT TODO
+        "swish": SiLU(),  # STUDENT TODO (same as silu)
+        "glu": GLU(),  # STUDENT TODO
     }
 
     if name.lower() not in activations:

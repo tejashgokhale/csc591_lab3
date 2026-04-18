@@ -51,18 +51,23 @@ class LanguageModelingLoss(nn.Module):
 
         # STUDENT TODO: Reshape logits to (batch_size * seq_len, vocab_size)
         # Hint: Use logits.view(-1, logits.size(-1))
-        logits = None  # STUDENT TODO
+        logits = logits.view(-1, logits.size(-1))  # STUDENT TODO
 
         # STUDENT TODO: Reshape targets to (batch_size * seq_len,)
         # Hint: Use targets.view(-1)
-        targets = None  # STUDENT TODO
+        targets = targets.view(-1)  # STUDENT TODO
 
         # TODO: Compute cross-entropy loss
         # Hint: Use F.cross_entropy with ignore_index=self.pad_token_id
         # This will automatically ignore padding tokens
         # Also use label_smoothing parameter
         # STUDENT TODO: Compute loss
-        loss = None  # STUDENT TODO
+        loss = F.cross_entropy(
+        logits,
+        targets,
+        ignore_index=self.pad_token_id,
+        label_smoothing=self.label_smoothing,
+    )  # STUDENT TODO
 
         return loss
 
@@ -90,7 +95,7 @@ def compute_perplexity(loss: float) -> float:
     # TODO: Compute perplexity
     # Formula: exp(loss)
     # STUDENT TODO: Compute perplexity
-    perplexity = None  # STUDENT TODO
+    perplexity = math.exp(loss)  # STUDENT TODO
 
     return perplexity
 
@@ -116,19 +121,19 @@ def compute_accuracy(
     # TODO: Get predicted token IDs
     # STUDENT TODO: Get the token with highest probability
     # Hint: Use torch.argmax(logits, dim=-1)
-    predictions = None  # STUDENT TODO
+    predictions = torch.argmax(logits, dim=-1)  # STUDENT TODO
 
     # TODO: Create mask for non-padding tokens
     # STUDENT TODO: Create mask where targets != pad_token_id
-    mask = None  # STUDENT TODO
+    mask = (targets != pad_token_id)  # STUDENT TODO
 
     # TODO: Compute accuracy only on non-padding tokens
     # STUDENT TODO: Count correct predictions and divide by total non-padding tokens
     # Hint: (predictions == targets) gives boolean tensor
     # Use mask to select only non-padding positions
-    correct = None  # STUDENT TODO
-    total = None  # STUDENT TODO
-    accuracy = None  # STUDENT TODO
+    correct = ((predictions == targets) & mask).sum()  # STUDENT TODO
+    total = mask.sum()  # STUDENT TODO
+    accuracy = correct.float() / total.float()  # STUDENT TODO
 
     return accuracy.item()
 
@@ -157,14 +162,14 @@ def compute_top_k_accuracy(
     # STUDENT TODO: Get indices of top-k logits
     # Hint: Use torch.topk(logits, k, dim=-1)
     # This returns (values, indices)
-    _, top_k_preds = None, None  # STUDENT TODO
+    _, top_k_preds = torch.topk(logits, k, dim=-1)  # STUDENT TODO
 
     # TODO: Check if target is in top-k
     # STUDENT TODO: Expand targets to compare with top_k_preds
     # Hint: targets.unsqueeze(-1) expands to (batch, seq_len, 1)
     # Then compare with top_k_preds: (targets.unsqueeze(-1) == top_k_preds)
     # Use .any(dim=-1) to check if target is in any of the k predictions
-    in_top_k = None  # STUDENT TODO
+    in_top_k = (targets.unsqueeze(-1) == top_k_preds).any(dim=-1)  # STUDENT TODO
 
     # TODO: Apply mask and compute accuracy
     mask = (targets != pad_token_id)
@@ -204,10 +209,10 @@ class MetricsTracker:
 
             # TODO: Update running sum and count
             # STUDENT TODO: Add value to running sum
-            self.metrics[name] += None  # STUDENT TODO
+            self.metrics[name] += float(value)  # STUDENT TODO
 
             # STUDENT TODO: Increment count
-            self.counts[name] += None  # STUDENT TODO
+            self.counts[name] += 1  # STUDENT TODO
 
     def compute(self) -> dict:
         """
@@ -220,7 +225,7 @@ class MetricsTracker:
         # STUDENT TODO: Divide each metric sum by its count
         averages = {}
         for name in self.metrics:
-            averages[name] = None  # STUDENT TODO
+            averages[name] = self.metrics[name] / self.counts[name]  # STUDENT TODO
 
         return averages
 

@@ -51,26 +51,29 @@ class SinusoidalPositionalEncoding(nn.Module):
 
         # TODO: Create position indices [0, 1, 2, ..., max_len-1]
         # Hint: Use torch.arange() and unsqueeze to shape (max_len, 1)
-        position = None  # STUDENT TODO
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)  # STUDENT TODO
 
         # TODO: Create the division term for the sinusoidal functions
         # Formula: div_term = 10000^(2i/d_model) for i in [0, d_model/2)
         # Hint: Use torch.arange(0, d_model, 2) to get even indices
         # Then compute: exp(-log(10000.0) * arange / d_model)
-        div_term = None  # STUDENT TODO
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2, dtype=torch.float)
+            * (-math.log(10000.0) / d_model)
+        )  # STUDENT TODO
 
         # TODO: Apply sine to even indices (0, 2, 4, ...)
         # Formula: PE(pos, 2i) = sin(pos / div_term)
         # Hint: pe[:, 0::2] selects even columns
-        pass  # STUDENT TODO
+        pe[:, 0::2] = torch.sin(position * div_term)  # STUDENT TODO
 
         # TODO: Apply cosine to odd indices (1, 3, 5, ...)
         # Formula: PE(pos, 2i+1) = cos(pos / div_term)
         # Hint: pe[:, 1::2] selects odd columns
-        pass  # STUDENT TODO
+        pe[:, 1::2] = torch.cos(position * div_term)  # STUDENT TODO
 
         # TODO: Add batch dimension: (max_len, d_model) -> (1, max_len, d_model)
-        pe = None  # STUDENT TODO
+        pe = pe.unsqueeze(0)  # STUDENT TODO
 
         # Register as buffer (not a parameter, but should be saved with the model)
         self.register_buffer("pe", pe)
@@ -88,7 +91,7 @@ class SinusoidalPositionalEncoding(nn.Module):
         # TODO: Add positional encoding to input
         # Hint: self.pe[:, :x.size(1)] selects the encodings for the current sequence length
         # The positional encoding should be added to x
-        x = None  # STUDENT TODO
+        x = x + self.pe[:, :x.size(1)]  # STUDENT TODO
 
         return self.dropout(x)
 

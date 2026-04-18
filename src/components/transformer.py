@@ -76,7 +76,7 @@ class TransformerEncoderLayer(nn.Module):
         # Hint: Use MultiHeadAttention if attention_type == "mha"
         #       Use GroupedQueryAttention if attention_type == "gqa"
         if attention_type == "mha":
-            self.attention = None  # STUDENT TODO
+            self.attention = MultiHeadAttention(d_model, num_heads, dropout)  # STUDENT TODO
         elif attention_type == "gqa":
             if num_kv_heads is None:
                 num_kv_heads = num_heads // 2  # Default to half
@@ -86,18 +86,18 @@ class TransformerEncoderLayer(nn.Module):
 
         # TODO: Create feed-forward network
         # Hint: Use create_ffn() function
-        self.ffn = None  # STUDENT TODO
+        self.ffn = create_ffn(ffn_type, d_model, d_ff, dropout, activation)  # STUDENT TODO
 
         # TODO: Create normalization layers
         # We need two normalization layers: one for attention, one for FFN
         # Hint: Use LayerNorm(d_model) if norm_type == "layernorm"
         #       Use RMSNorm(d_model) if norm_type == "rmsnorm"
         if norm_type == "layernorm":
-            self.norm1 = None  # STUDENT TODO
-            self.norm2 = None  # STUDENT TODO
+            self.norm1 = LayerNorm(d_model)  # STUDENT TODO
+            self.norm2 = LayerNorm(d_model)  # STUDENT TODO
         elif norm_type == "rmsnorm":
-            self.norm1 = None  # STUDENT TODO
-            self.norm2 = None  # STUDENT TODO
+            self.norm1 = RMSNorm(d_model)  # STUDENT TODO
+            self.norm2 = RMSNorm(d_model)  # STUDENT TODO
         else:
             raise ValueError(f"Unknown norm_type: {norm_type}")
 
@@ -118,6 +118,9 @@ class TransformerEncoderLayer(nn.Module):
         Returns:
             Output tensor of shape (batch_size, seq_len, d_model)
         """
+        if self_attn_mask is None:
+            self_attn_mask = create_causal_mask(x.size(1), x.device)
+
         if self.norm_position == "pre":
             # Pre-norm: norm -> attention -> residual
             # TODO: Apply self-attention with pre-norm
@@ -125,9 +128,9 @@ class TransformerEncoderLayer(nn.Module):
             # 2. Apply attention: self.attention(normalized, normalized, normalized, mask)
             # 3. Apply dropout to attention output
             # 4. Add residual connection: x + dropout(attention_output)
-            normed = None  # STUDENT TODO (normalize)
-            attn_output, _ = None, None  # STUDENT TODO (attention)
-            x = None  # STUDENT TODO (residual: x + dropout(attn_output))
+            normed = self.norm1(x)  # STUDENT TODO (normalize)
+            attn_output, _ = self.self_attention(normed, normed, normed, self_attn_mask)  # STUDENT TODO (attention)
+            x = x + self.dropout(attn_output)  # STUDENT TODO (residual: x + dropout(attn_output))
 
             # Pre-norm: norm -> ffn -> residual
             # TODO: Apply feed-forward with pre-norm
@@ -135,9 +138,9 @@ class TransformerEncoderLayer(nn.Module):
             # 2. Apply FFN: self.ffn(normalized)
             # 3. Apply dropout
             # 4. Add residual connection: x + dropout(ffn_output)
-            normed = None  # STUDENT TODO
-            ffn_output = None  # STUDENT TODO
-            x = None  # STUDENT TODO (residual)
+            normed = self.norm2(x)  # STUDENT TODO
+            ffn_output = self.ffn(normed)  # STUDENT TODO
+            x = x + self.dropout(ffn_output)  # STUDENT TODO (residual)
 
         else:  # post-norm
             # Post-norm: attention -> residual -> norm
@@ -214,36 +217,36 @@ class TransformerDecoderLayer(nn.Module):
 
         # TODO: Create self-attention mechanism (same as encoder)
         if attention_type == "mha":
-            self.self_attention = None  # STUDENT TODO
+            self.self_attention = MultiHeadAttention(d_model, num_heads, dropout)  # STUDENT TODO
         elif attention_type == "gqa":
             if num_kv_heads is None:
                 num_kv_heads = num_heads // 2
-            self.self_attention = None  # STUDENT TODO
+            self.self_attention = GroupedQueryAttention(d_model, num_heads, num_kv_heads, dropout)  # STUDENT TODO
         else:
             raise ValueError(f"Unknown attention_type: {attention_type}")
 
         # TODO: Create cross-attention if needed (for encoder-decoder models)
         if use_cross_attention:
             if attention_type == "mha":
-                self.cross_attention = None  # STUDENT TODO
+                self.cross_attention = MultiHeadAttention(d_model, num_heads, dropout)  # STUDENT TODO
             elif attention_type == "gqa":
-                self.cross_attention = None  # STUDENT TODO
+                self.cross_attention = GroupedQueryAttention(d_model, num_heads, num_kv_heads, dropout)  # STUDENT TODO
 
         # TODO: Create feed-forward network
-        self.ffn = None  # STUDENT TODO
+        self.ffn = create_ffn(ffn_type, d_model, d_ff, dropout, activation)  # STUDENT TODO
 
         # TODO: Create normalization layers
         # We need 2 or 3 norm layers depending on whether we use cross-attention
         if norm_type == "layernorm":
-            self.norm1 = None  # STUDENT TODO (for self-attention)
+            self.norm1 = LayerNorm(d_model)  # STUDENT TODO (for self-attention)
             if use_cross_attention:
-                self.norm2 = None  # STUDENT TODO (for cross-attention)
-            self.norm3 = None  # STUDENT TODO (for FFN)
+                self.norm2 = LayerNorm(d_model)  # STUDENT TODO (for cross-attention)
+            self.norm3 = LayerNorm(d_model)  # STUDENT TODO (for FFN)
         elif norm_type == "rmsnorm":
-            self.norm1 = None  # STUDENT TODO
+            self.norm1 = RMSNorm(d_model)  # STUDENT TODO
             if use_cross_attention:
-                self.norm2 = None  # STUDENT TODO
-            self.norm3 = None  # STUDENT TODO
+                self.norm2 = RMSNorm(d_model)  # STUDENT TODO
+            self.norm3 = RMSNorm(d_model)  # STUDENT TODO
         else:
             raise ValueError(f"Unknown norm_type: {norm_type}")
 
@@ -272,50 +275,54 @@ class TransformerDecoderLayer(nn.Module):
         # TODO: Create causal mask if not provided
         # Hint: Use create_causal_mask(x.size(1), x.device)
         if self_attn_mask is None:
-            self_attn_mask = None  # STUDENT TODO
+            self_attn_mask = create_causal_mask(x.size(1), x.device)  # STUDENT TODO
 
         if self.norm_position == "pre":
             # Pre-norm: Masked self-attention
             # TODO: Apply masked self-attention with pre-norm
             # Same as encoder, but use self_attn_mask (causal mask)
-            normed = None  # STUDENT TODO
-            attn_output, _ = None, None  # STUDENT TODO
-            x = None  # STUDENT TODO (residual)
+            normed = self.norm1(x)  # STUDENT TODO
+            attn_output, _ = self.self_attention(normed, normed, normed, self_attn_mask)  # STUDENT TODO
+            x = x + self.dropout(attn_output)  # STUDENT TODO (residual)
 
             # Pre-norm: Cross-attention (if enabled)
             if self.use_cross_attention and encoder_output is not None:
                 # TODO: Apply cross-attention with pre-norm
                 # Query comes from decoder (x), Key and Value come from encoder
                 # Hint: self.cross_attention(query=normed, key=encoder_output, value=encoder_output)
-                normed = None  # STUDENT TODO
-                cross_attn_output, _ = None, None  # STUDENT TODO
-                x = None  # STUDENT TODO (residual)
+                normed = self.norm2(x)  # STUDENT TODO
+                cross_attn_output, _ = self.cross_attention(
+                normed, encoder_output, encoder_output, cross_attn_mask
+            )  # STUDENT TODO
+                x = x + self.dropout(cross_attn_output)  # STUDENT TODO (residual)
 
             # Pre-norm: Feed-forward
             # TODO: Apply FFN with pre-norm
-            normed = None  # STUDENT TODO
-            ffn_output = None  # STUDENT TODO
-            x = None  # STUDENT TODO (residual)
+            normed = self.norm3(x)  # STUDENT TODO
+            ffn_output = self.ffn(normed)  # STUDENT TODO
+            x = x + self.dropout(ffn_output)  # STUDENT TODO (residual)
 
         else:  # post-norm
             # Post-norm: Masked self-attention
             # TODO: Apply masked self-attention with post-norm
-            attn_output, _ = None, None  # STUDENT TODO
-            x = None  # STUDENT TODO (residual)
-            x = None  # STUDENT TODO (normalize)
+            attn_output, _ = self.self_attention(x, x, x, self_attn_mask)  # STUDENT TODO
+            x = x + self.dropout(attn_output)  # STUDENT TODO (residual)
+            x = self.norm1(x)  # STUDENT TODO (normalize)
 
             # Post-norm: Cross-attention (if enabled)
             if self.use_cross_attention and encoder_output is not None:
                 # TODO: Apply cross-attention with post-norm
-                cross_attn_output, _ = None, None  # STUDENT TODO
-                x = None  # STUDENT TODO (residual)
-                x = None  # STUDENT TODO (normalize)
+                cross_attn_output, _ = self.cross_attention(
+                x, encoder_output, encoder_output, cross_attn_mask
+            )  # STUDENT TODO
+                x = x + self.dropout(cross_attn_output)  # STUDENT TODO (residual)
+                x = self.norm2(x)  # STUDENT TODO (normalize)
 
             # Post-norm: Feed-forward
             # TODO: Apply FFN with post-norm
-            ffn_output = None  # STUDENT TODO
-            x = None  # STUDENT TODO (residual)
-            x = None  # STUDENT TODO (normalize)
+            ffn_output = self.ffn(x)  # STUDENT TODO
+            x = x + self.dropout(ffn_output)  # STUDENT TODO (residual)
+            x = self.norm3(x)  # STUDENT TODO (normalize)
 
         return x
 

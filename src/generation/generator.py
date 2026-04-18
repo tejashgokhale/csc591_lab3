@@ -64,27 +64,34 @@ class TextGenerator:
         """
         # TODO: Encode prompt
         # STUDENT TODO: Use tokenizer to encode prompt
-        input_ids = None  # STUDENT TODO: self.tokenizer.encode(prompt, add_special_tokens=True)
+        input_ids = self.tokenizer.encode(prompt, add_special_tokens=True)   # STUDENT TODO: self.tokenizer.encode(prompt, add_special_tokens=True)
 
         # TODO: Convert to tensor and move to device
         # STUDENT TODO: Create tensor and move to device
-        input_ids = None  # STUDENT TODO: torch.tensor([input_ids], device=self.device)
+        input_ids = torch.tensor([input_ids], dtype=torch.long, device=self.device)  # STUDENT TODO: torch.tensor([input_ids], device=self.device)
 
         # TODO: Repeat for multiple sequences
         if num_return_sequences > 1:
             # STUDENT TODO: Repeat input_ids for num_return_sequences
             # Hint: input_ids.repeat(num_return_sequences, 1)
-            input_ids = None  # STUDENT TODO
+            input_ids = input_ids.repeat(num_return_sequences, 1)  # STUDENT TODO
 
         # TODO: Generate tokens
         # STUDENT TODO: Call _generate_tokens
-        generated_ids = None  # STUDENT TODO
+        generated_ids = self._generate_tokens(
+        input_ids=input_ids,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        do_sample=do_sample,
+    )  # STUDENT TODO
 
         # TODO: Decode generated sequences
         generated_texts = []
         for ids in generated_ids:
             # STUDENT TODO: Decode token IDs to text
-            text = None  # STUDENT TODO: self.tokenizer.decode(ids.tolist(), skip_special_tokens=True)
+            text = self.tokenizer.decode(ids.tolist(), skip_special_tokens=True)  # STUDENT TODO: self.tokenizer.decode(ids.tolist(), skip_special_tokens=True)
             generated_texts.append(text)
 
         return generated_texts
@@ -118,13 +125,13 @@ class TextGenerator:
             # TODO: Get logits for next token
             # STUDENT TODO: Forward pass through model
             # Note: Only need logits for the last position
-            logits, _ = None, None  # STUDENT TODO: self.model(generated)
-            logits = None  # STUDENT TODO: logits[:, -1, :] (select last position)
+            logits, _ = self.model(generated)  # STUDENT TODO: self.model(generated)
+            logits = logits[:, -1, :]  # STUDENT TODO: logits[:, -1, :] (select last position)
 
             # TODO: Apply temperature
             # STUDENT TODO: Divide logits by temperature
             if temperature != 1.0:
-                logits = None  # STUDENT TODO
+                logits = logits / temperature  # STUDENT TODO
 
             # TODO: Apply top-k filtering
             if top_k is not None:
@@ -140,16 +147,16 @@ class TextGenerator:
             if do_sample:
                 # STUDENT TODO: Sample from distribution
                 # Hint: F.softmax(logits, dim=-1) then torch.multinomial
-                probs = None  # STUDENT TODO
-                next_token = None  # STUDENT TODO
+                probs = F.softmax(logits, dim=-1)  # STUDENT TODO
+                next_token = torch.multinomial(probs, num_samples=1).squeeze(-1)  # STUDENT TODO
             else:
                 # STUDENT TODO: Greedy decoding - take argmax
-                next_token = None  # STUDENT TODO
+                next_token = torch.argmax(logits, dim=-1)  # STUDENT TODO
 
             # TODO: Append next token to generated sequence
             # STUDENT TODO: Concatenate next_token to generated
             # Hint: torch.cat([generated, next_token.unsqueeze(-1)], dim=-1)
-            generated = None  # STUDENT TODO
+            generated = torch.cat([generated, next_token.unsqueeze(-1)], dim=-1)  # STUDENT TODO
 
             # TODO: Check for EOS token
             # If all sequences have generated EOS, stop
@@ -171,7 +178,7 @@ class TextGenerator:
         """
         # TODO: Get top-k values and indices
         # STUDENT TODO: Use torch.topk to get top-k values
-        top_k_values, top_k_indices = None, None  # STUDENT TODO
+        top_k_values, top_k_indices = torch.topk(logits, top_k, dim=-1)  # STUDENT TODO
 
         # TODO: Create mask for top-k tokens
         # STUDENT TODO: Set all logits to -inf, then restore top-k values
@@ -179,7 +186,7 @@ class TextGenerator:
         filtered_logits = torch.full_like(logits, float("-inf"))
         # STUDENT TODO: Use scatter_ to restore top-k values
         # Hint: filtered_logits.scatter_(dim=-1, index=top_k_indices, src=top_k_values)
-        pass  # STUDENT TODO
+        filtered_logits.scatter_(dim=-1, index=top_k_indices, src=top_k_values)  # STUDENT TODO
 
         return filtered_logits
 
@@ -198,12 +205,12 @@ class TextGenerator:
         """
         # TODO: Sort logits in descending order
         # STUDENT TODO: Sort logits and get indices
-        sorted_logits, sorted_indices = None, None  # STUDENT TODO: torch.sort(logits, descending=True, dim=-1)
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)  # STUDENT TODO: torch.sort(logits, descending=True, dim=-1)
 
         # TODO: Compute cumulative probabilities
         # STUDENT TODO: Apply softmax and compute cumsum
-        sorted_probs = None  # STUDENT TODO: F.softmax(sorted_logits, dim=-1)
-        cumulative_probs = None  # STUDENT TODO: torch.cumsum(sorted_probs, dim=-1)
+        sorted_probs = F.softmax(sorted_logits, dim=-1)  # STUDENT TODO: F.softmax(sorted_logits, dim=-1)
+        cumulative_probs = torch.cumsum(sorted_probs, dim=-1)  # STUDENT TODO: torch.cumsum(sorted_probs, dim=-1)
 
         # TODO: Find tokens to remove (cumulative prob > top_p)
         # STUDENT TODO: Create mask for tokens to remove
@@ -212,14 +219,19 @@ class TextGenerator:
         # STUDENT TODO: Shift mask to the right to keep first token above threshold
         # Hint: sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
         # Hint: sorted_indices_to_remove[..., 0] = False
-        pass  # STUDENT TODO
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = False  # STUDENT TODO
 
         # TODO: Set removed tokens to -inf
         # STUDENT TODO: Scatter -inf values back to original positions
         # Hint: Create filtered_logits, then use scatter_ with sorted_indices
         filtered_logits = logits.clone()
         # STUDENT TODO: Implement scattering
-        pass  # STUDENT TODO
+        filtered_logits.scatter_(
+        dim=-1,
+        index=sorted_indices,
+        src=sorted_logits.masked_fill(sorted_indices_to_remove, float("-inf")),
+    )  # STUDENT TODO
 
         return filtered_logits
 
@@ -247,7 +259,7 @@ class TextGenerator:
         results = []
         for prompt in prompts:
             # STUDENT TODO: Generate for this prompt
-            generated = None  # STUDENT TODO: self.generate(prompt, max_new_tokens, **kwargs)
+            generated = self.generate(prompt, max_new_tokens=max_new_tokens, **kwargs)  # STUDENT TODO: self.generate(prompt, max_new_tokens, **kwargs)
             results.extend(generated)
 
         return results

@@ -64,29 +64,29 @@ class ScaledDotProductAttention(nn.Module):
         """
         # TODO: Get the dimension of the key vectors (head_dim)
         # Hint: Use query.size(-1) or key.size(-1)
-        d_k = None  # STUDENT TODO
+        d_k = query.size(-1)  # STUDENT TODO
 
         # TODO: Compute attention scores
         # Formula: scores = (Q @ K^T) / sqrt(d_k)
         # Hint: Use torch.matmul() and transpose the last two dimensions of key
-        scores = None  # STUDENT TODO
+        scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)  # STUDENT TODO
 
         # TODO: Apply mask if provided
         # Hint: Use scores.masked_fill(mask == 0, float('-inf'))
         # This sets masked positions to -inf so they become 0 after softmax
         if mask is not None:
-            pass  # STUDENT TODO
+            scores = scores.masked_fill(mask == 0, float('-inf'))  # STUDENT TODO
 
         # TODO: Apply softmax to get attention weights
         # Hint: Apply softmax along the last dimension (dim=-1)
-        attention_weights = None  # STUDENT TODO
+        attention_weights = F.softmax(scores, dim=-1)  # STUDENT TODO
 
         # TODO: Apply dropout to attention weights
-        attention_weights = None  # STUDENT TODO
+        attention_weights = self.dropout(attention_weights)  # STUDENT TODO
 
         # TODO: Compute the weighted sum of values
         # Formula: output = attention_weights @ V
-        output = None  # STUDENT TODO
+        output = torch.matmul(attention_weights, value)  # STUDENT TODO
 
         return output, attention_weights
 
@@ -122,13 +122,13 @@ class MultiHeadAttention(nn.Module):
         # Linear projections for Q, K, V
         # TODO: Create linear layers for query, key, and value projections
         # Each should project from d_model to d_model dimensions
-        self.q_proj = None  # STUDENT TODO
-        self.k_proj = None  # STUDENT TODO
-        self.v_proj = None  # STUDENT TODO
+        self.q_proj = nn.Linear(d_model, d_model)  # STUDENT TODO
+        self.k_proj = nn.Linear(d_model, d_model)  # STUDENT TODO
+        self.v_proj = nn.Linear(d_model, d_model)  # STUDENT TODO
 
         # Output projection
         # TODO: Create a linear layer to project concatenated heads back to d_model
-        self.out_proj = None  # STUDENT TODO
+        self.out_proj = nn.Linear(d_model, d_model)  # STUDENT TODO
 
         # Attention mechanism
         self.attention = ScaledDotProductAttention(dropout)
@@ -149,11 +149,11 @@ class MultiHeadAttention(nn.Module):
 
         # TODO: Reshape x to (batch_size, seq_len, num_heads, head_dim)
         # Hint: Use x.view()
-        x = None  # STUDENT TODO
+        x = x.view(batch_size, seq_len, self.num_heads, self.head_dim)  # STUDENT TODO
 
         # TODO: Transpose to (batch_size, num_heads, seq_len, head_dim)
         # Hint: Use x.transpose(1, 2)
-        x = None  # STUDENT TODO
+        x = x.transpose(1, 2)  # STUDENT TODO
 
         return x
 
@@ -170,11 +170,11 @@ class MultiHeadAttention(nn.Module):
         batch_size, num_heads, seq_len, head_dim = x.size()
 
         # TODO: Transpose to (batch_size, seq_len, num_heads, head_dim)
-        x = None  # STUDENT TODO
+        x = x.transpose(1, 2)  # STUDENT TODO
 
         # TODO: Reshape to (batch_size, seq_len, d_model)
         # Hint: Use x.contiguous().view()
-        x = None  # STUDENT TODO
+        x = x.contiguous().view(batch_size, seq_len, self.d_model)  # STUDENT TODO
 
         return x
 
@@ -202,27 +202,27 @@ class MultiHeadAttention(nn.Module):
 
         # TODO: Project query, key, and value
         # Hint: Apply self.q_proj, self.k_proj, self.v_proj
-        Q = None  # STUDENT TODO
-        K = None  # STUDENT TODO
-        V = None  # STUDENT TODO
+        Q = self.q_proj(query)  # STUDENT TODO
+        K = self.k_proj(key)  # STUDENT TODO
+        V = self.v_proj(value)  # STUDENT TODO
 
         # TODO: Split into multiple heads
         # Hint: Use self._split_heads()
-        Q = None  # STUDENT TODO
-        K = None  # STUDENT TODO
-        V = None  # STUDENT TODO
+        Q = self._split_heads(Q)  # STUDENT TODO
+        K = self._split_heads(K)  # STUDENT TODO
+        V = self._split_heads(V)  # STUDENT TODO
 
         # TODO: Apply attention
         # Hint: Use self.attention()
-        attn_output, attention_weights = None, None  # STUDENT TODO
+        attn_output, attention_weights = self.attention(Q, K, V, mask)  # STUDENT TODO
 
         # TODO: Combine heads
         # Hint: Use self._combine_heads()
-        attn_output = None  # STUDENT TODO
+        attn_output = self._combine_heads(attn_output)  # STUDENT TODO
 
         # TODO: Apply output projection
         # Hint: Use self.out_proj()
-        output = None  # STUDENT TODO
+        output = self.out_proj(attn_output)  # STUDENT TODO
 
         return output, attention_weights
 
@@ -398,10 +398,10 @@ def create_causal_mask(seq_len: int, device: torch.device) -> torch.Tensor:
     """
     # TODO: Create a lower triangular matrix of ones
     # Hint: Use torch.tril(torch.ones(...))
-    mask = None  # STUDENT TODO
+    mask = torch.tril(torch.ones(seq_len, seq_len, device=device))  # STUDENT TODO
 
     # TODO: Reshape to (1, 1, seq_len, seq_len) for broadcasting
-    mask = None  # STUDENT TODO
+    mask = mask.unsqueeze(0).unsqueeze(0)  # STUDENT TODO
 
     return mask
 
@@ -420,9 +420,9 @@ def create_padding_mask(seq: torch.Tensor, pad_idx: int = 0) -> torch.Tensor:
     """
     # TODO: Create mask where padding tokens are 0 and real tokens are 1
     # Hint: Use (seq != pad_idx)
-    mask = None  # STUDENT TODO
+    mask = (seq != pad_idx).float()  # STUDENT TODO
 
     # TODO: Reshape to (batch_size, 1, 1, seq_len) for broadcasting
-    mask = None  # STUDENT TODO
+    mask = mask.unsqueeze(1).unsqueeze(2)  # STUDENT TODO
 
     return mask
