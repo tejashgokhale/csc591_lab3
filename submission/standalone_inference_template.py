@@ -61,19 +61,49 @@ def total_artifact_size_bytes(paths: list[str | Path]) -> int:
     return total
 
 
-def load_runtime(device: str) -> dict[str, Any]:
-    """
-    STUDENT TODO:
-    Load your model, tokenizer, and any other runtime objects here.
 
-    Return a dict. Recommended keys:
-    - "model": loaded model object
-    - "tokenizer": tokenizer object or helper wrapper
-    - "submission_name": short display name
-    - "dtype": e.g. "float32", "bfloat16"
-    - "artifact_paths": list of packaged files to count for size metrics
-    """
-    raise NotImplementedError("Replace load_runtime() with your own packaged model loading code.")
+def load_runtime(device: str) -> dict[str, Any]:
+    from src.model.config import ModelConfig
+    from src.model.language_model import TransformerLanguageModel
+    from src.tokenizer.loading import load_tokenizer
+
+    # paths inside submission folder
+    checkpoint_path = PACKAGE_DIR / "best_model.pt"
+    tokenizer_path = PACKAGE_DIR / "english_bytebpe_8k.json"
+
+    # load tokenizer
+    tokenizer = load_tokenizer(str(tokenizer_path))
+
+    # load checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    # rebuild model config
+    model_config_dict = checkpoint["config"]["model_config"]
+    model_config = ModelConfig.from_dict(model_config_dict)
+
+    # create model
+    model = TransformerLanguageModel(model_config)
+
+    # fix DataParallel prefix if needed
+    state_dict = checkpoint["model_state_dict"]
+    if all(k.startswith("module.") for k in state_dict.keys()):
+        state_dict = {k.removeprefix("module."): v for k, v in state_dict.items()}
+
+    model.load_state_dict(state_dict)
+    model.to(device)
+    model.eval()
+
+    return {
+        "model": model,
+        "tokenizer": tokenizer,
+        "submission_name": "tiny_transformer",
+        "dtype": "float32",
+        "artifact_paths": [
+            "best_model.pt",
+            "english_bytebpe_8k.json",
+        ],
+    }
+
 
 
 def generate_with_runtime(
@@ -85,19 +115,40 @@ def generate_with_runtime(
     top_p: float,
     seed: int,
 ) -> dict[str, Any]:
-    """
-    STUDENT TODO:
-    Run generation and return a dict with at least:
-    - "generated_text": full text to display
-    - "response_text": continuation only
-    - "num_generated_tokens": integer token count for the continuation
 
-    Optional keys:
-    - "parameter_count"
-    - "artifact_paths"
-    - "extra"  (any extra metadata you want to expose)
-    """
-    raise NotImplementedError("Replace generate_with_runtime() with your own generation code.")
+    model = runtime["model"]
+    tokenizer = runtime["tokenizer"]
+
+    device = next(model.parameters()).device
+
+    # encode prompt
+    input_ids = tokenizer.encode(prompt, add_special_tokens=True)
+    input_ids = torch.tensor([input_ids], dtype=torch.long, device=device)
+
+    with torch.no_grad():
+        output_ids = model.generate(
+            input_ids,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            top_k=top_k if top_k > 0 else None,
+            top_p=top_p,
+            do_sample=(temperature != 1.0 or top_k > 0),
+        )
+
+    # decode
+    generated_text = tokenizer.decode(output_ids[0].tolist(), skip_special_tokens=True)
+
+    # extract only new tokens
+    prompt_len = input_ids.shape[1]
+    response_ids = output_ids[0][prompt_len:]
+    response_text = tokenizer.decode(response_ids.tolist(), skip_special_tokens=True)
+
+    return {
+        "generated_text": generated_text,
+        "response_text": response_text,
+        "num_generated_tokens": int(len(response_ids)),
+        "dtype": "float32",
+    }
 
 
 def parse_args() -> argparse.Namespace:
